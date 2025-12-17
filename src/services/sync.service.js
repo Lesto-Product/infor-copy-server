@@ -38,6 +38,7 @@ async function syncTable(tableKey) {
   if (data.length > 0) {
     await localProvider.upsertData(def.localTable, data, def.primaryKeys);
   }
+  await localProvider.updateSyncLog(tableKey, "SUCCESS", data.length);
 
   return { table: tableKey, rows: data.length, status: "SUCCESS" };
 }

@@ -25,12 +25,21 @@ function startWebServer() {
     res.send("Service is running correctly!");
   });
 
-  app.get("/tables", (req, res) => {
-    const list = Object.keys(tableDefinitions).map((key) => ({
-      key: key,
-      localTable: tableDefinitions[key].localTable,
-      cloudTable: tableDefinitions[key].cloudTable,
-    }));
+  app.get("/tables", async (req, res) => {
+    const logs = await localProvider.getSyncLogs();
+
+    const list = Object.keys(tableDefinitions).map((key) => {
+      const logEntry = logs[key];
+
+      return {
+        key: key,
+        localTable: tableDefinitions[key].localTable,
+        cloudTable: tableDefinitions[key].cloudTable,
+        lastSync: logEntry ? logEntry.date : null,
+        lastRows: logEntry ? logEntry.rows : 0,
+      };
+    });
+
     res.json(list);
   });
 

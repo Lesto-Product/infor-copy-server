@@ -101,4 +101,59 @@ async function getMaxTimestamp(tableName, timeColumn) {
   }
 }
 
-module.exports = { upsertData, getMaxTimestamp };
+async function updateSyncLog(tableName, status, rowsCount) {
+  const pool = await getPool();
+  try {
+    const safeRows = rowsCount || 0; // Защита срещу null
+
+    await pool
+      .request()
+      .input("tbl", sql.NVarChar, tableName)
+      .input("stat", sql.NVarChar, status)
+      .input("rows", sql.Int, safeRows) // Подаваме бройката
+      .query(`
+        MERGE [dbo].[_AppSyncLog] AS target
+        USING (SELECT @tbl AS TableName) AS source
+        ON (target.TableName = source.TableName)
+        WHEN MATCHED THEN
+            UPDATE SET LastSync = GETDATE(), Status = @stat, RowsAffected = @rows
+        WHEN NOT MATCHED THEN
+            INSERT (TableName, LastSync, Status, RowsAffected) 
+            VALUES (@tbl, GETDATE(), @stat, @rows);
+      `);
+  } catch (err) {
+    console.error("Failed to update sync log", err);
+  } finally {
+    pool.close();
+  }
+}
+
+// --- НОВО: Взима дата И брой редове ---
+async function getSyncLogs() {
+  const pool = await getPool();
+  try {
+    // Вече не проверяваме дали таблицата съществува, защото я създаде ръчно
+    const res = await pool
+      .request()
+      .query(
+        "SELECT TableName, LastSync, RowsAffected FROM [dbo].[_AppSyncLog]"
+      );
+
+    // Връщаме обект: { "tdsls401": { date: "...", rows: 500 }, ... }
+    const logs = {};
+    res.recordset.forEach((row) => {
+      logs[row.TableName] = {
+        date: row.LastSync,
+        rows: row.RowsAffected,
+      };
+    });
+    return logs;
+  } catch (err) {
+    console.error("Failed to get sync logs. Did you run the SQL script?", err);
+    return {};
+  } finally {
+    pool.close();
+  }
+}
+
+module.exports = { upsertData, getMaxTimestamp, updateSyncLog, getSyncLogs };
