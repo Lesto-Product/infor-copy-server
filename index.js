@@ -3,6 +3,8 @@ require("dotenv").config();
 
 const { initializeDataLake } = require("./db/initializeDatalake");
 const { startWebServer } = require("./src/app");
+const { startScheduler } = require("./src/services/scheduler.service");
+
 const logger = {
   info: (msg) => console.log(`[INFO] ${msg}`),
   error: (msg, err) => console.error(`[ERROR] ${msg}`, err),
@@ -19,7 +21,7 @@ async function main() {
 
     await initializeDataLake();
     startWebServer();
-
+    startScheduler();
     logger.info("Application started successfully.");
 
     setInterval(() => {}, 1000);
