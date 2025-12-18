@@ -7,11 +7,23 @@ services:
     restart: always
     ports:
       - "3005:3005"
+    env_file:
+      - .env
     environment:
       - NODE_ENV=production
-      # Pass these from the Linux VM environment or a .env file on the server
+      # Променливите се взимат автоматично от .env файла на сървъра
       - LOCAL_DB_SERVER=${LOCAL_DB_SERVER}
       - LOCAL_DB_USER=${LOCAL_DB_USER}
       - LOCAL_DB_PASSWORD=${LOCAL_DB_PASSWORD}
       - LOCAL_DB_NAME=${LOCAL_DB_NAME}
       - CLOUD_DB_URL=${CLOUD_DB_URL}
+
+  frontend:
+    image: nginx:alpine
+    container_name: infor_ui
+    restart: always
+    ports:
+      - "3000:80"
+    volumes:
+      # Директно споделяне на папката с билднатия фронтенд
+      - ./ui:/usr/share/nginx/html
