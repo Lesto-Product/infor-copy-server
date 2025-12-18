@@ -1,18 +1,18 @@
 const express = require("express");
 const cors = require("cors");
 const syncService = require("./services/sync.service");
-const tableDefinitions = require("./definitions/tables");
+const standardDefs = require("./definitions/tables");
+const preactorDefs = require("./definitions/preactor");
 const localProvider = require("./providers/local.provider");
+
 function startWebServer() {
   const app = express();
   app.use(cors());
   app.use(express.json());
 
   // GENERIC TRIGGER
-  // Този endpoint може да викне: /trigger/tdsls401 или /trigger/tisfc001
   app.post("/trigger/:tableKey", async (req, res) => {
     const { tableKey } = req.params;
-
     try {
       const result = await syncService.syncTable(tableKey);
       res.json(result);
@@ -21,26 +21,34 @@ function startWebServer() {
       res.status(500).json({ error: err.message });
     }
   });
+
   app.get("/health", (req, res) => {
     res.send("Service is running correctly!");
   });
 
   app.get("/tables", async (req, res) => {
-    const logs = await localProvider.getSyncLogs();
+    try {
+      const logs = await localProvider.getSyncLogs();
 
-    const list = Object.keys(tableDefinitions).map((key) => {
-      const logEntry = logs[key];
+      // Комбинираме дефинициите
+      const allDefs = { ...standardDefs, ...preactorDefs };
 
-      return {
-        key: key,
-        localTable: tableDefinitions[key].localTable,
-        cloudTable: tableDefinitions[key].cloudTable,
-        lastSync: logEntry ? logEntry.date : null,
-        lastRows: logEntry ? logEntry.rows : 0,
-      };
-    });
+      const list = Object.keys(allDefs).map((key) => {
+        const def = allDefs[key];
+        return {
+          key: key,
+          localTable: def.localTable,
+          // Ако е preactor, името е "Complex Query", иначе е името на облачната таблица
+          cloudTable: def.cloudTable || "Preactor SQL Query",
+          lastSync: logs[key]?.date || null,
+          lastRows: logs[key]?.rows || 0,
+        };
+      });
 
-    res.json(list);
+      res.json(list);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
   app.listen(3005, () => {

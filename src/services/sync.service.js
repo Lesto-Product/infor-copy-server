@@ -1,45 +1,56 @@
-const definitions = require("../definitions/tables");
+// src/services/sync.service.js
+const standardDefs = require("../definitions/tables");
+const preactorDefs = require("../definitions/preactor"); // Новият файл
 const cloudProvider = require("../providers/cloud.provider");
 const localProvider = require("../providers/local.provider");
 
 async function syncTable(tableKey) {
-  const def = definitions[tableKey];
-  if (!def) throw new Error(`Definition for table '${tableKey}' not found.`);
+  // 1. Проверяваме дали е Preactor или Стандартна таблица
+  const isPreactor = tableKey.startsWith("preactor_");
+  const def = isPreactor ? preactorDefs[tableKey] : standardDefs[tableKey];
+
+  if (!def) throw new Error(`Definition for '${tableKey}' not found.`);
 
   console.log(`--- Starting Sync for ${tableKey} ---`);
 
-  // 1. Проверка за инкрементален update
-  let whereClause = "";
-  if (def.incrementalColumn) {
-    const lastDate = await localProvider.getMaxTimestamp(
-      def.localTable,
-      def.incrementalColumn
-    );
-    console.log(`Last timestamp for ${def.localTable}: ${lastDate}`);
-    whereClause = `WHERE CAST([${def.incrementalColumn}] AS DATETIME) > '${lastDate}'`;
+  let query = "";
+  if (isPreactor) {
+    // За Preactor ползваме готовата сложна заявка
+    query = def.query;
   } else {
-    whereClause = "WHERE 1=1"; // Dummy start
+    // За Стандартни таблици сглобяваме SELECT заявката
+    let lastDate = "1970-01-01T00:00:00.000Z";
+    if (def.incrementalColumn) {
+      lastDate = await localProvider.getMaxTimestamp(
+        def.localTable,
+        def.incrementalColumn
+      );
+    }
+
+    let where = def.incrementalColumn
+      ? `WHERE CAST([${def.incrementalColumn}] AS DATETIME) > '${lastDate}'`
+      : "WHERE 1=1";
+
+    if (def.baseFilter) where += ` AND ${def.baseFilter}`;
+    query = `SELECT ${def.fields} FROM ${def.cloudTable} ${where}`;
   }
 
-  // 2. Добавяне на статичен филтър (ако има)
-  if (def.baseFilter) {
-    whereClause += ` AND ${def.baseFilter}`;
-  }
-
-  // 3. Сглобяване на Query-то
-  const query = `SELECT ${def.fields} FROM ${def.cloudTable} ${whereClause}`;
-  console.log("Executing Cloud Query:", query);
-
-  // 4. Fetch
+  // 2. Fetch
   const data = await cloudProvider.fetchQuery(query);
-  console.log(`Fetched ${data.length} rows from Cloud.`);
+  console.log(`Fetched ${data.length} rows.`);
 
-  // 5. Upsert Local
+  // 3. Save
   if (data.length > 0) {
-    await localProvider.upsertData(def.localTable, data, def.primaryKeys);
+    if (isPreactor) {
+      // Режим: Изтрий и вкарай
+      await localProvider.truncateAndInsert(def.localTable, data);
+    } else {
+      // Режим: Upsert (Merge)
+      await localProvider.upsertData(def.localTable, data, def.primaryKeys);
+    }
   }
-  await localProvider.updateSyncLog(tableKey, "SUCCESS", data.length);
 
+  await localProvider.updateSyncLog(tableKey, "SUCCESS", data.length);
   return { table: tableKey, rows: data.length, status: "SUCCESS" };
 }
 

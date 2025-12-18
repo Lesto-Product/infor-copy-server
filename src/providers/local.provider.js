@@ -155,5 +155,59 @@ async function getSyncLogs() {
     pool.close();
   }
 }
+async function truncateAndInsert(tableName, data) {
+  if (!data || data.length === 0) return 0;
 
-module.exports = { upsertData, getMaxTimestamp, updateSyncLog, getSyncLogs };
+  const pool = await getPool();
+  try {
+    console.log(`[LOCAL] Truncating table ${tableName}...`);
+    await pool.request().query(`DELETE FROM [dbo].[${tableName}]`);
+
+    const columns = Object.keys(data[0]);
+    const insertCols = columns.map((c) => `[${c}]`).join(", ");
+    const insertVals = columns.map((c) => `@${c}`).join(", ");
+    const insertQuery = `INSERT INTO [dbo].[${tableName}] (${insertCols}) VALUES (${insertVals})`;
+
+    for (const row of data) {
+      const request = pool.request();
+      if (row.PlannedOrder === null || row.PlannedOrder === undefined) {
+        row.PlannedOrder = "0";
+      }
+      columns.forEach((col) => {
+        let value;
+        if (col === "PlannedOrder") {
+          value =
+            row[col] !== undefined && row[col] !== null
+              ? String(row[col])
+              : null;
+        } else {
+          value = row[col] ? String(row[col]) : null;
+        }
+        request.input(col, sql.NVarChar, value);
+      });
+
+      try {
+        await request.query(insertQuery);
+      } catch (queryErr) {
+        // ТУК ГЪРМИ ПРИ ГРЕШКА
+        console.error(`[ERROR] Failed to insert row into ${tableName}!`);
+        console.error("Problematic Record:", JSON.stringify(row, null, 2));
+        throw queryErr; // Прекратяваме, за да видиш грешката в лога
+      }
+    }
+
+    return data.length;
+  } catch (err) {
+    throw err;
+  } finally {
+    pool.close();
+  }
+}
+// Не забравяй да я добавиш в exports!
+module.exports = {
+  upsertData,
+  getMaxTimestamp,
+  updateSyncLog,
+  getSyncLogs,
+  truncateAndInsert,
+};

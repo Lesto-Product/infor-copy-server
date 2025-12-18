@@ -20,7 +20,7 @@ COPY package*.json ./
 
 # 4. Install Node Dependencies
 RUN npm install --legacy-peer-deps
-
+RUN sed -i 's/BigDecimal/String/g' node_modules/@naxmefy/jdbc/lib/Types.js
 # 5. Copy the rest of your application code
 COPY . .
 
