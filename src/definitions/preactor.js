@@ -28,4 +28,8 @@ module.exports = {
     localTable: "LNPurchaseInvoices",
     query: require("./queries/preactor/purchaseInvoice.query"),
   },
+  preactor_open_sales: {
+    localTable: "ProdOrderWithOpenSls",
+    query: require("./queries/preactor/openSales.query"),
+  },
 };
