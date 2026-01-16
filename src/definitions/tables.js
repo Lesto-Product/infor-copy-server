@@ -27,9 +27,9 @@ const fields = {
 
   pur401: `[item], [ddta], [pric], [qidl], [orno], [otbp] , [pono]`,
 
-  tibom300: `[bmdl], [bmrv], [mitm]`,
+  tibom300: `[bmdl], MAX([bmrv]) AS [bmrv], [mitm]`,
 
-  tibom310: `ch.[pono], ch.[sitm] ,ch.[qana] ,ch.[scpf] ,ch.[bmdl] ,ch.[bmrv]`,
+  tibom310: `ch.[pono], ch.[sitm] ,ch.[qana] ,ch.[scpf] ,p.[bmdl] , p.[bmrv]`,
 };
 
 // --- 2. Описване на правилата за всяка таблица ---
@@ -139,16 +139,20 @@ const tableDefinitions = {
     primaryKeys: ["bmdl", "bmrv"],
     incrementalColumn: null,
     baseFilter: "bmst = '20'",
+    groupBy: "[bmdl], [mitm]",
   },
 
   tibom310: {
     localTable: "original_tibom310",
-    cloudTable:
-      "LN_tibom310 l LN_tibom300 p on l.bmdl = p.bmdl and l.bmrv = p.bmrv",
+    cloudTable: `LN_tibom310 l INNER JOIN (
+    SELECT bmdl, MAX(bmrv) AS bmrv, bmst
+    FROM LN_tibom300
+    WHERE bmst = '20'
+    GROUP BY bmdl, bmst
+    ) p ON l.bmdl = p.bmdl AND l.bmrv = p.bmrv`,
     fields: fields.tibom310,
     primaryKeys: ["bmdl", "bmrv"],
     incrementalColumn: null,
-    baseFilter: "p.bmst='20'",
   },
 };
 

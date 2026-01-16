@@ -29,7 +29,12 @@ async function syncTable(tableKey) {
       : "WHERE 1=1";
 
     if (def.baseFilter) where += ` AND ${def.baseFilter}`;
+
     query = `SELECT ${def.fields} FROM ${def.cloudTable} ${where}`;
+    if (def.groupBy) {
+      query += ` GROUP BY ${def.groupBy}`;
+    }
+    console.log(`Constructed Query: ${query}`);
   }
 
   // 2. Fetch
