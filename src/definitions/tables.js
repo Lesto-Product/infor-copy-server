@@ -136,7 +136,7 @@ const tableDefinitions = {
     localTable: "original_tibom300",
     cloudTable: "LN_tibom300",
     fields: fields.tibom300,
-    primaryKeys: ["bmdl", "bmrv"],
+    primaryKeys: ["bmdl"],
     incrementalColumn: null,
     baseFilter: "bmst = '20'",
     groupBy: "[bmdl], [mitm]",
@@ -151,7 +151,7 @@ const tableDefinitions = {
     GROUP BY bmdl, bmst
     ) p ON l.bmdl = p.bmdl AND l.bmrv = p.bmrv`,
     fields: fields.tibom310,
-    primaryKeys: ["bmdl", "bmrv"],
+    primaryKeys: ["bmdl", "pono"],
     incrementalColumn: null,
   },
 };

@@ -11,7 +11,7 @@ async function getPool() {
  * @param {Array} data - Масив от обекти с данни
  * @param {Array} keys - Масив от стрингове, кои колони са Primary Key (напр. ['orno', 'pono'])
  */
-async function upsertData(tableName, data, keys) {
+async function upsertData_old(tableName, data, keys) {
   if (!data || data.length === 0) return 0;
 
   const pool = await getPool();
@@ -68,6 +68,64 @@ async function upsertData(tableName, data, keys) {
   }
 }
 
+async function upsertData(tableName, data, keys) {
+  if (!data || data.length === 0) return 0;
+
+  const pool = await getPool();
+  try {
+    const columns = Object.keys(data[0]);
+
+    // 1. Създаваме временна таблица (Bulk Copy)
+    const table = new sql.Table(`#Temp_${tableName}`);
+    columns.forEach((col) => {
+      table.columns.add(col, sql.NVarChar(sql.MAX), { nullable: true });
+    });
+
+    data.forEach((row) => {
+      if (row.PlannedOrder === null || row.PlannedOrder === undefined) {
+        row.PlannedOrder = "0";
+      }
+      table.rows.add(
+        ...columns.map((c) => (row[c] !== null ? String(row[c]) : null))
+      );
+    });
+
+    const request = pool.request();
+    await request.bulk(table); // Качва 150к реда за секунди
+
+    // 2. MERGE логика
+    const matchCondition = keys
+      .map((k) => `Target.[${k}] = Source.[${k}]`)
+      .join(" AND ");
+    const updateSet = columns
+      .filter((c) => !keys.includes(c))
+      .map((c) => `Target.[${c}] = Source.[${c}]`)
+      .join(", ");
+
+    const insertCols = columns.map((c) => `[${c}]`).join(", ");
+    const insertVals = columns.map((c) => `Source.[${c}]`).join(", ");
+
+    const finalMergeQuery = `
+      MERGE [dbo].[${tableName}] AS Target
+      USING #Temp_${tableName} AS Source
+      ON (${matchCondition})
+      WHEN MATCHED THEN
+        UPDATE SET ${updateSet}
+      WHEN NOT MATCHED BY TARGET THEN
+        INSERT (${insertCols}) VALUES (${insertVals});
+      DROP TABLE #Temp_${tableName};
+    `;
+
+    await request.query(finalMergeQuery);
+    console.log(`[BULK SUCCESS] ${tableName}: ${data.length} rows.`);
+    return data.length;
+  } catch (err) {
+    console.error(`Bulk Error:`, err);
+    throw err;
+  } finally {
+    pool.close();
+  }
+}
 /**
  * Взима последната дата за инкрементален ъпдейт
  */
