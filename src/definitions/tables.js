@@ -5,7 +5,7 @@
 const fields = {
   sls400: `[orno], [ddat], [corn_bg_BG], [oamt], [ccur], [ofbp], [odat], [hdst], [itbp], [timestamp]`,
 
-  sls401: `[oamt], [ofbp], [orno], [ddta], [item], [pric], [odat], [qoor], [timestamp], [corn_bg_BG], [pono], [ttyp]`,
+  sls401: `[oamt], [ofbp], [orno], [ddta], [item], [pric], [odat], [qoor], [timestamp], [corn_bg_BG], [pono], [ttyp], [clyn]`,
 
   sfc001: `[pdno], [mitm], [qrdr], [osta], [cprj], [grid], [qdlv], [timestamp]`,
 
