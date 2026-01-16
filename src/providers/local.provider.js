@@ -74,9 +74,21 @@ async function upsertData(tableName, data, keys) {
   const pool = await getPool();
   try {
     const columns = Object.keys(data[0]);
+    const tempTableName = `#Temp_${tableName}`;
 
-    // 1. Създаваме временна таблица (Bulk Copy)
-    const table = new sql.Table(`#Temp_${tableName}`);
+    // 1. РЪЧНО СЪЗДАВАНЕ НА ВРЕМЕННАТА ТАБЛИЦА
+    // Това гарантира, че SQL Server "вижда" обекта преди bulk операцията
+    const createTempTableQuery = `
+      CREATE TABLE ${tempTableName} (
+        ${columns.map((col) => `[${col}] NVARCHAR(MAX)`).join(", ")}
+      );
+    `;
+
+    const request = pool.request();
+    await request.query(createTempTableQuery);
+
+    // 2. ПОДГОТОВКА НА BULK ОБЕКТА
+    const table = new sql.Table(tempTableName);
     columns.forEach((col) => {
       table.columns.add(col, sql.NVarChar(sql.MAX), { nullable: true });
     });
@@ -90,10 +102,10 @@ async function upsertData(tableName, data, keys) {
       );
     });
 
-    const request = pool.request();
-    await request.bulk(table); // Качва 150к реда за секунди
+    // 3. ИЗПЪЛНЕНИЕ НА BULK INSERT
+    await request.bulk(table);
 
-    // 2. MERGE логика
+    // 4. MERGE ЛОГИКА
     const matchCondition = keys
       .map((k) => `Target.[${k}] = Source.[${k}]`)
       .join(" AND ");
@@ -107,20 +119,20 @@ async function upsertData(tableName, data, keys) {
 
     const finalMergeQuery = `
       MERGE [dbo].[${tableName}] AS Target
-      USING #Temp_${tableName} AS Source
+      USING ${tempTableName} AS Source
       ON (${matchCondition})
       WHEN MATCHED THEN
         UPDATE SET ${updateSet}
       WHEN NOT MATCHED BY TARGET THEN
         INSERT (${insertCols}) VALUES (${insertVals});
-      DROP TABLE #Temp_${tableName};
+      DROP TABLE ${tempTableName};
     `;
 
     await request.query(finalMergeQuery);
-    console.log(`[BULK SUCCESS] ${tableName}: ${data.length} rows.`);
+    console.log(`[BULK SUCCESS] ${tableName}: ${data.length} rows merged.`);
     return data.length;
   } catch (err) {
-    console.error(`Bulk Error:`, err);
+    console.error(`Bulk Error in upsertData for ${tableName}:`, err);
     throw err;
   } finally {
     pool.close();
