@@ -29,7 +29,7 @@ const fields = {
 
   tibom300: `[bmdl], [bmrv], [mitm]`,
 
-  tibom310: `[pono], [sitm] ,[qana] ,[scpf] ,[bmdl] ,[bmrv]`,
+  tibom310: `ch.[pono], ch.[sitm] ,ch.[qana] ,ch.[scpf] ,ch.[bmdl] ,ch.[bmrv]`,
 };
 
 // --- 2. Описване на правилата за всяка таблица ---
@@ -138,14 +138,17 @@ const tableDefinitions = {
     fields: fields.tibom300,
     primaryKeys: ["bmdl", "bmrv"],
     incrementalColumn: null,
+    baseFilter: "bmst = '20'",
   },
 
   tibom310: {
     localTable: "original_tibom310",
-    cloudTable: "LN_tibom310",
+    cloudTable:
+      "LN_tibom310 l LN_tibom300 p on l.bmdl = p.bmdl and l.bmrv = p.bmrv",
     fields: fields.tibom310,
     primaryKeys: ["bmdl", "bmrv"],
     incrementalColumn: null,
+    baseFilter: "p.bmst='20'",
   },
 };
 
