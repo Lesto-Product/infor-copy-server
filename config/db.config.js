@@ -10,6 +10,8 @@ module.exports = {
       encrypt: false,
       enableArithAbort: false,
       trustServerCertificate: true,
+      connectTimeout: 300000,
+      requestTimeout: 600000,
     },
   },
   cloud: {

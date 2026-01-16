@@ -21,15 +21,15 @@ const fields = {
 
   com100: `[nama_bg_BG], [bpid]`,
 
-  sli305: `[idat], [brid], [ccur], [amti], [itbp]`,
+  sli305: `[idat], [brid], [ccur],MAX([amti]) as [amti], [itbp]`,
 
   pur400: `[hdst], [orno], [ccur]`,
 
-  pur401: `[item], [ddta], [pric], [qidl], [orno], [otbp] , [pono]`,
+  pur401: `[item], [ddta], [pric], [qidl], [orno], [otbp], [pono]`,
 
   tibom300: `[bmdl], MAX([bmrv]) AS [bmrv], [mitm]`,
 
-  tibom310: `ch.[pono], ch.[sitm] ,ch.[qana] ,ch.[scpf] ,p.[bmdl] , p.[bmrv]`,
+  tibom310: `l.pono, l.sitm, MAX(l.qana) as qana, MAX(l.scpf) as scpf, l.bmdl, l.bmrv`,
 };
 
 // --- 2. Описване на правилата за всяка таблица ---
@@ -78,7 +78,7 @@ const tableDefinitions = {
     cloudTable:
       "LN_tcibd001 main LEFT JOIN LN_tcibd004 client ON client.item = main.item",
     fields: fields.ibd001,
-    primaryKeys: ["item"],
+    primaryKeys: ["item", "aitc_bg_BG"],
     baseFilter: "",
     incrementalColumn: null,
   },
@@ -111,9 +111,10 @@ const tableDefinitions = {
     localTable: "original_cisli305",
     cloudTable: "LN_cisli305",
     fields: fields.sli305,
-    primaryKeys: ["brid", "itbp"],
+    primaryKeys: ["brid", "itbp", "idat"],
     baseFilter: "CAST(idat AS DATE) > '2018-01-01'",
     incrementalColumn: null,
+    groupBy: "[idat], [brid], [ccur], [itbp]",
   },
 
   tdpur400: {
@@ -128,7 +129,7 @@ const tableDefinitions = {
     localTable: "original_tdpur401",
     cloudTable: "LN_tdpur401",
     fields: fields.pur401,
-    primaryKeys: ["orno", "pono"],
+    primaryKeys: ["orno", "pono", "item"],
     incrementalColumn: null,
   },
 
@@ -136,7 +137,7 @@ const tableDefinitions = {
     localTable: "original_tibom300",
     cloudTable: "LN_tibom300",
     fields: fields.tibom300,
-    primaryKeys: ["bmdl"],
+    primaryKeys: ["bmdl", "mitm"],
     incrementalColumn: null,
     baseFilter: "bmst = '20'",
     groupBy: "[bmdl], [mitm]",
@@ -151,8 +152,9 @@ const tableDefinitions = {
     GROUP BY bmdl, bmst
     ) p ON l.bmdl = p.bmdl AND l.bmrv = p.bmrv`,
     fields: fields.tibom310,
-    primaryKeys: ["bmdl", "pono"],
+    primaryKeys: ["bmdl", "pono", "sitm"],
     incrementalColumn: null,
+    groupBy: "l.pono, l.sitm, l.bmdl, l.bmrv",
   },
 };
 

@@ -1,154 +1,121 @@
 const sql = require("mssql");
 const config = require("../../config/db.config").local;
 
-async function getPool() {
-  return await new sql.ConnectionPool(config).connect();
-}
+// Глобална променлива за поддържане на една активна връзка (Pool)
+let globalPool = null;
 
 /**
- * Генерира MERGE заявка и я изпълнява.
- * @param {string} tableName - Името на таблицата в MSSQL (напр. 'original_tdsls401')
- * @param {Array} data - Масив от обекти с данни
- * @param {Array} keys - Масив от стрингове, кои колони са Primary Key (напр. ['orno', 'pono'])
+ * Създава или връща съществуващ Connection Pool.
+ * Предотвратява изчерпването на ресурсите на SQL Express.
  */
-async function upsertData_old(tableName, data, keys) {
-  if (!data || data.length === 0) return 0;
-
-  const pool = await getPool();
-  let processed = 0;
+async function getPool() {
+  if (globalPool && globalPool.connected) {
+    return globalPool;
+  }
 
   try {
-    const columns = Object.keys(data[0]);
-
-    const matchCondition = keys
-      .map((k) => `Target.[${k}] = Source.[${k}]`)
-      .join(" AND ");
-
-    // 3. Update Set: Всичко, което НЕ е ключ
-    const nonKeyColumns = columns.filter((c) => !keys.includes(c));
-    const updateSet = nonKeyColumns
-      .map((c) => `Target.[${c}] = Source.[${c}]`)
-      .join(", ");
-
-    // 4. Insert Columns и Values
-    const insertCols = columns.map((c) => `[${c}]`).join(", ");
-    const insertVals = columns.map((c) => `Source.[${c}]`).join(", ");
-
-    const mergeQuery = `
-      MERGE [dbo].[${tableName}] AS Target
-      USING (SELECT ${columns
-        .map((c) => `@${c} as [${c}]`)
-        .join(", ")}) AS Source
-      ON (${matchCondition})
-      WHEN MATCHED THEN
-        UPDATE SET ${updateSet}
-      WHEN NOT MATCHED BY TARGET THEN
-        INSERT (${insertCols}) 
-        VALUES (${insertVals});
-    `;
-
-    for (const row of data) {
-      const request = pool.request();
-
-      columns.forEach((col) => {
-        request.input(col, sql.NVarChar, row[col]);
-      });
-
-      await request.query(mergeQuery);
-      processed++;
-    }
-
-    console.log(`Upserted ${processed} rows into ${tableName}`);
-    return processed;
+    globalPool = await new sql.ConnectionPool(config).connect();
+    console.log("[MSSQL] Глобалният Connection Pool е установен успешно.");
+    return globalPool;
   } catch (err) {
-    console.error(`Error upserting into ${tableName}:`, err);
+    console.error(
+      "[MSSQL] Критична грешка при свързване с локалната база:",
+      err
+    );
+    globalPool = null;
     throw err;
-  } finally {
-    pool.close();
   }
 }
 
+/**
+ * Основна функция за Bulk Upsert чрез глобална временна таблица.
+ * Решава проблеми с Collation и производителност.
+ */
 async function upsertData(tableName, data, keys) {
   if (!data || data.length === 0) return 0;
 
   const pool = await getPool();
+  // Уникално име за глобалната временна таблица, за да се вижда от Bulk процеса
+  const tempTableName = `##TempBulk_${tableName}_${Date.now()}`;
+
   try {
     const columns = Object.keys(data[0]);
-    const tempTableName = `#Temp_${tableName}`;
-
     const request = pool.request();
-
-    // 1. РЪЧНО СЪЗДАВАМЕ ВРЕМЕННАТА ТАБЛИЦА В SQL SERVER
-    // Използваме NVARCHAR(MAX), за да приемем стринговите данни от Java драйвера
+    request.timeout = 300000;
+    // 1. СЪЗДАВАНЕ С DATABASE_DEFAULT (Решава Collation Conflict)
     const createTempTableQuery = `
       CREATE TABLE ${tempTableName} (
-        ${columns.map((col) => `[${col}] NVARCHAR(MAX)`).join(", ")}
+        ${columns
+          .map((col) => `[${col}] NVARCHAR(MAX) COLLATE DATABASE_DEFAULT`)
+          .join(", ")}
       );
     `;
     await request.query(createTempTableQuery);
 
-    // 2. ПОДГОТОВКА НА BULK ОБЕКТА В NODE.JS
-    const table = new sql.Table(tempTableName); // Вече съществува в SQL, затова bulk ще го намери
+    // 2. ПОДГОТОВКА И BULK INSERT
+    const table = new sql.Table(tempTableName);
     columns.forEach((col) => {
       table.columns.add(col, sql.NVarChar(sql.MAX), { nullable: true });
     });
 
     data.forEach((row) => {
-      // Защита за PlannedOrder (ако съществува в тази таблица)
+      // Защита за PlannedOrder
       if (
         row.hasOwnProperty("PlannedOrder") &&
         (row.PlannedOrder === null || row.PlannedOrder === undefined)
       ) {
         row.PlannedOrder = "0";
       }
-
       table.rows.add(
         ...columns.map((c) => (row[c] !== null ? String(row[c]) : null))
       );
     });
 
-    // 3. BULK INSERT ВЪВ ВРЕМЕННАТА ТАБЛИЦА
     await request.bulk(table);
 
-    // 4. MERGE ОТ ВРЕМЕННАТА КЪМ ОРИГИНАЛНАТА ТАБЛИЦА
+    // 3. MERGE С ИЗРИЧЕН COLLATE ПРИ КЛЮЧОВЕТЕ И DISTINCT
     const matchCondition = keys
-      .map((k) => `Target.[${k}] = Source.[${k}]`)
+      .map((k) => `Target.[${k}] = Source.[${k}] COLLATE DATABASE_DEFAULT`)
       .join(" AND ");
 
     const nonKeyColumns = columns.filter((c) => !keys.includes(c));
     const updateSet = nonKeyColumns
       .map((c) => `Target.[${c}] = Source.[${c}]`)
       .join(", ");
-
     const insertCols = columns.map((c) => `[${c}]`).join(", ");
     const insertVals = columns.map((c) => `Source.[${c}]`).join(", ");
 
     const finalMergeQuery = `
       MERGE [dbo].[${tableName}] AS Target
-      USING ${tempTableName} AS Source
+      USING (SELECT DISTINCT * FROM ${tempTableName}) AS Source
       ON (${matchCondition})
       WHEN MATCHED THEN
         UPDATE SET ${updateSet}
       WHEN NOT MATCHED BY TARGET THEN
         INSERT (${insertCols}) VALUES (${insertVals});
       
-      -- Изтриваме временната таблица ръчно
       DROP TABLE ${tempTableName};
     `;
 
     await request.query(finalMergeQuery);
-
     console.log(`[BULK SUCCESS] ${tableName}: ${data.length} rows merged.`);
     return data.length;
   } catch (err) {
-    console.error(`Bulk Error in upsertData for ${tableName}:`, err);
+    console.error(`Грешка при Bulk Upsert в ${tableName}:`, err);
+    try {
+      await pool
+        .request()
+        .query(
+          `IF OBJECT_ID('tempdb..${tempTableName}') IS NOT NULL DROP TABLE ${tempTableName}`
+        );
+    } catch (e) {}
     throw err;
-  } finally {
-    pool.close();
   }
+  // pool.close() е премахнат, за да се запази глобалната връзка
 }
+
 /**
- * Взима последната дата за инкрементален ъпдейт
+ * Взима последната дата за инкрементален ъпдейт.
  */
 async function getMaxTimestamp(tableName, timeColumn) {
   const pool = await getPool();
@@ -165,16 +132,16 @@ async function getMaxTimestamp(tableName, timeColumn) {
       `Could not get timestamp for ${tableName}, defaulting to 1970.`
     );
     return "1970-01-01T00:00:00.000Z";
-  } finally {
-    pool.close();
   }
 }
 
+/**
+ * Обновява системния лог за синхронизация.
+ */
 async function updateSyncLog(tableName, status, rowsCount) {
   const pool = await getPool();
   try {
     const safeRows = rowsCount || 0;
-
     await pool
       .request()
       .input("tbl", sql.NVarChar, tableName)
@@ -191,11 +158,12 @@ async function updateSyncLog(tableName, status, rowsCount) {
       `);
   } catch (err) {
     console.error("Failed to update sync log", err);
-  } finally {
-    pool.close();
   }
 }
 
+/**
+ * Взима логовете за всички таблици.
+ */
 async function getSyncLogs() {
   const pool = await getPool();
   try {
@@ -204,7 +172,6 @@ async function getSyncLogs() {
       .query(
         "SELECT TableName, LastSync, RowsAffected FROM [dbo].[_AppSyncLog]"
       );
-
     const logs = {};
     res.recordset.forEach((row) => {
       logs[row.TableName] = {
@@ -214,12 +181,14 @@ async function getSyncLogs() {
     });
     return logs;
   } catch (err) {
-    console.error("Failed to get sync logs. Did you run the SQL script?", err);
+    console.error("Failed to get sync logs.", err);
     return {};
-  } finally {
-    pool.close();
   }
 }
+
+/**
+ * Изтрива всичко и налива наново (използва се за Preactor таблици).
+ */
 async function truncateAndInsert(tableName, data) {
   if (!data || data.length === 0) return 0;
 
@@ -239,34 +208,18 @@ async function truncateAndInsert(tableName, data) {
         row.PlannedOrder = "0";
       }
       columns.forEach((col) => {
-        let value;
-        if (col === "PlannedOrder") {
-          value =
-            row[col] !== undefined && row[col] !== null
-              ? String(row[col])
-              : null;
-        } else {
-          value = row[col] ? String(row[col]) : null;
-        }
+        let value =
+          row[col] !== null && row[col] !== undefined ? String(row[col]) : null;
         request.input(col, sql.NVarChar, value);
       });
-
-      try {
-        await request.query(insertQuery);
-      } catch (queryErr) {
-        console.error(`[ERROR] Failed to insert row into ${tableName}!`);
-        console.error("Problematic Record:", JSON.stringify(row, null, 2));
-        throw queryErr;
-      }
+      await request.query(insertQuery);
     }
-
     return data.length;
   } catch (err) {
     throw err;
-  } finally {
-    pool.close();
   }
 }
+
 module.exports = {
   upsertData,
   getMaxTimestamp,
