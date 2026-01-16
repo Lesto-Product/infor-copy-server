@@ -76,41 +76,47 @@ async function upsertData(tableName, data, keys) {
     const columns = Object.keys(data[0]);
     const tempTableName = `#Temp_${tableName}`;
 
-    // 1. РЪЧНО СЪЗДАВАНЕ НА ВРЕМЕННАТА ТАБЛИЦА
-    // Това гарантира, че SQL Server "вижда" обекта преди bulk операцията
+    const request = pool.request();
+
+    // 1. РЪЧНО СЪЗДАВАМЕ ВРЕМЕННАТА ТАБЛИЦА В SQL SERVER
+    // Използваме NVARCHAR(MAX), за да приемем стринговите данни от Java драйвера
     const createTempTableQuery = `
       CREATE TABLE ${tempTableName} (
         ${columns.map((col) => `[${col}] NVARCHAR(MAX)`).join(", ")}
       );
     `;
-
-    const request = pool.request();
     await request.query(createTempTableQuery);
 
-    // 2. ПОДГОТОВКА НА BULK ОБЕКТА
-    const table = new sql.Table(tempTableName);
+    // 2. ПОДГОТОВКА НА BULK ОБЕКТА В NODE.JS
+    const table = new sql.Table(tempTableName); // Вече съществува в SQL, затова bulk ще го намери
     columns.forEach((col) => {
       table.columns.add(col, sql.NVarChar(sql.MAX), { nullable: true });
     });
 
     data.forEach((row) => {
-      if (row.PlannedOrder === null || row.PlannedOrder === undefined) {
+      // Защита за PlannedOrder (ако съществува в тази таблица)
+      if (
+        row.hasOwnProperty("PlannedOrder") &&
+        (row.PlannedOrder === null || row.PlannedOrder === undefined)
+      ) {
         row.PlannedOrder = "0";
       }
+
       table.rows.add(
         ...columns.map((c) => (row[c] !== null ? String(row[c]) : null))
       );
     });
 
-    // 3. ИЗПЪЛНЕНИЕ НА BULK INSERT
+    // 3. BULK INSERT ВЪВ ВРЕМЕННАТА ТАБЛИЦА
     await request.bulk(table);
 
-    // 4. MERGE ЛОГИКА
+    // 4. MERGE ОТ ВРЕМЕННАТА КЪМ ОРИГИНАЛНАТА ТАБЛИЦА
     const matchCondition = keys
       .map((k) => `Target.[${k}] = Source.[${k}]`)
       .join(" AND ");
-    const updateSet = columns
-      .filter((c) => !keys.includes(c))
+
+    const nonKeyColumns = columns.filter((c) => !keys.includes(c));
+    const updateSet = nonKeyColumns
       .map((c) => `Target.[${c}] = Source.[${c}]`)
       .join(", ");
 
@@ -125,10 +131,13 @@ async function upsertData(tableName, data, keys) {
         UPDATE SET ${updateSet}
       WHEN NOT MATCHED BY TARGET THEN
         INSERT (${insertCols}) VALUES (${insertVals});
+      
+      -- Изтриваме временната таблица ръчно
       DROP TABLE ${tempTableName};
     `;
 
     await request.query(finalMergeQuery);
+
     console.log(`[BULK SUCCESS] ${tableName}: ${data.length} rows merged.`);
     return data.length;
   } catch (err) {
