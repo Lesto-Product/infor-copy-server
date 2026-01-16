@@ -26,6 +26,10 @@ const fields = {
   pur400: `[hdst], [orno], [ccur]`,
 
   pur401: `[item], [ddta], [pric], [qidl], [orno], [otbp] , [pono]`,
+
+  tibom300: `[bmdl], [bmrv], [mitm]`,
+
+  tibom310: `[pono], [sitm] ,[qana] ,[scpf] ,[bmdl] ,[bmrv]`,
 };
 
 // --- 2. Описване на правилата за всяка таблица ---
@@ -125,6 +129,22 @@ const tableDefinitions = {
     cloudTable: "LN_tdpur401",
     fields: fields.pur401,
     primaryKeys: ["orno", "pono"],
+    incrementalColumn: null,
+  },
+
+  tibom300: {
+    localTable: "original_tibom300",
+    cloudTable: "LN_tibom300",
+    fields: fields.tibom300,
+    primaryKeys: ["bmdl", "bmrv"],
+    incrementalColumn: null,
+  },
+
+  tibom310: {
+    localTable: "original_tibom310",
+    cloudTable: "LN_tibom310",
+    fields: fields.tibom310,
+    primaryKeys: ["bmdl", "bmrv"],
     incrementalColumn: null,
   },
 };
