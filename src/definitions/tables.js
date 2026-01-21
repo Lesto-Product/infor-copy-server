@@ -30,6 +30,8 @@ const fields = {
   tibom300: `[bmdl], MAX([bmrv]) AS [bmrv], [mitm]`,
 
   tibom310: `l.pono, l.sitm, MAX(l.qana) as qana, MAX(l.scpf) as scpf, l.bmdl, l.bmrv`,
+
+  tdisa001: `item, ccur, cups, pris, cvat, qimo, timestamp`,
 };
 
 // --- 2. Описване на правилата за всяка таблица ---
@@ -155,6 +157,14 @@ const tableDefinitions = {
     primaryKeys: ["bmdl", "pono", "sitm"],
     incrementalColumn: null,
     groupBy: "l.pono, l.sitm, l.bmdl, l.bmrv",
+  },
+
+  tdisa001: {
+    localTable: "original_tdisa001",
+    cloudTable: "LN_tdisa001",
+    fields: fields.tdisa001,
+    primaryKeys: ["item"],
+    incrementalColumn: "timestamp",
   },
 };
 
