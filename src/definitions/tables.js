@@ -32,6 +32,8 @@ const fields = {
   tibom310: `l.pono, l.sitm, MAX(l.qana) as qana, MAX(l.scpf) as scpf, l.bmdl, l.bmrv`,
 
   tdisa001: `item, ccur, cups, pris, cvat, qimo, timestamp`,
+
+  tirou401: `[opno], [refo], [cwoc], [mitm], [rutm], [mtyp], [prte], [prtm], [rorv], [timestamp]`,
 };
 
 // --- 2. Описване на правилата за всяка таблица ---
@@ -165,6 +167,15 @@ const tableDefinitions = {
     fields: fields.tdisa001,
     primaryKeys: ["item"],
     incrementalColumn: "timestamp",
+  },
+
+  tirou401: {
+    localTable: "original_tirou401",
+    cloudTable: "LN_tirou401",
+    fields: fields.tirou401,
+    primaryKeys: ["mitm", "opno", "rorv"],
+    incrementalColumn: "timestamp",
+    baseFilter: "trim(mitm) not like 'SLS%'",
   },
 };
 
