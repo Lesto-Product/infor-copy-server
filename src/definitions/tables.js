@@ -33,7 +33,7 @@ const fields = {
 
   tdisa001: `item, ccur, cups, pris, cvat, qimo, timestamp`,
 
-  tirou401: `[opno], [refo], [cwoc], [mitm], [rutm], [mtyp], [prte], [prtm], [rorv], [timestamp]`,
+  tirou401: `t401.[opno], t401.[refo], t401.[cwoc], t401.[mitm], t401.[rutm], t401.[mtyp], t401.[prte], t401.[prtm], t401.[rorv], t401.[timestamp], t450.dsca_bg_BG`,
 };
 
 // --- 2. Описване на правилата за всяка таблица ---
@@ -168,14 +168,17 @@ const tableDefinitions = {
     primaryKeys: ["item"],
     incrementalColumn: "timestamp",
   },
-
   tirou401: {
     localTable: "original_tirou401",
-    cloudTable: "LN_tirou401",
+    cloudTable: `LN_tirou401 t401 LEFT JOIN (
+      SELECT refo, MAX(dsca_bg_BG) as dsca_bg_BG 
+      FROM LN_tirou450 
+      GROUP BY refo
+    ) t450 ON t401.refo = t450.refo`,
     fields: fields.tirou401,
     primaryKeys: ["mitm", "opno", "rorv"],
     incrementalColumn: "timestamp",
-    baseFilter: "trim(mitm) not like 'SLS%'",
+    baseFilter: "trim(t401.mitm) NOT LIKE 'SLS%'",
   },
 };
 
