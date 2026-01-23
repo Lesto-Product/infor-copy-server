@@ -1,5 +1,4 @@
-const openSalesQuery = `
-SELECT 
+const openSalesQuery = `SELECT 
     LN_tisfc001.pdno AS OrderNo, 
     CASE
         WHEN LN_tisfc010.opno IS NULL THEN 10
@@ -33,7 +32,7 @@ LEFT JOIN
 INNER JOIN 
     LN_tdsls400 ON LTRIM(RTRIM(LN_tisfc001.cprj)) = LTRIM(RTRIM(LN_tdsls400.orno))
 WHERE
-    LN_tdsls400.hdst = 20  AND LN_tdsls401.qoor IS NOT NULL
+    (LN_tdsls400.hdst = 20 OR LN_tdsls400.hdst = 35)  AND LN_tdsls401.qoor IS NOT NULL
 GROUP BY
     LN_tisfc001.pdno,
     LN_tisfc001.cprj,
