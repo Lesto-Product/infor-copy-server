@@ -143,7 +143,7 @@ const tableDefinitions = {
     fields: fields.tibom300,
     primaryKeys: ["bmdl", "mitm"],
     incrementalColumn: null,
-    baseFilter: "bmst = '20'",
+    baseFilter: "bmst = '20' and mitm not like 'SLS%'",
     groupBy: "[bmdl], [mitm]",
   },
 
@@ -152,12 +152,13 @@ const tableDefinitions = {
     cloudTable: `LN_tibom310 l INNER JOIN (
     SELECT bmdl, MAX(bmrv) AS bmrv, bmst
     FROM LN_tibom300
-    WHERE bmst = '20'
+    WHERE bmst = '20' and mitm not like 'SLS%'
     GROUP BY bmdl, bmst
     ) p ON l.bmdl = p.bmdl AND l.bmrv = p.bmrv`,
     fields: fields.tibom310,
     primaryKeys: ["bmdl", "pono", "sitm"],
     incrementalColumn: null,
+    baseFilter: "l.sitm not like 'SLS%'",
     groupBy: "l.pono, l.sitm, l.bmdl, l.bmrv",
   },
 
