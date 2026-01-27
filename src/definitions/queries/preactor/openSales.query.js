@@ -32,7 +32,8 @@ LEFT JOIN
 INNER JOIN 
     LN_tdsls400 ON LTRIM(RTRIM(LN_tisfc001.cprj)) = LTRIM(RTRIM(LN_tdsls400.orno))
 WHERE
-    (LN_tdsls400.hdst = 20 OR LN_tdsls400.hdst = 35 OR LN_tdsls400.hdst = 30)  AND LN_tdsls401.qoor IS NOT NULL
+    LN_tisfc010.opst < 7
+    AND LN_tdsls401.qoor IS NOT NULL
 GROUP BY
     LN_tisfc001.pdno,
     LN_tisfc001.cprj,
