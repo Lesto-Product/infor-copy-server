@@ -1,9 +1,6 @@
 const openSalesQuery = `SELECT 
     LN_tisfc001.pdno AS OrderNo, 
-    CASE
-        WHEN LN_tisfc010.opno IS NULL THEN 10
-        ELSE LN_tisfc010.opno
-    END AS OpNo,
+    ISNULL(LN_tisfc010.opno, 10) AS OpNo,
     LN_tisfc010.refo,
     LN_tisfc010.opst AS Status,
     LN_tisfc001.cprj AS Project, 
@@ -21,17 +18,17 @@ FROM
     LN_tisfc001
 LEFT JOIN 
     LN_tisfc010 ON LN_tisfc001.pdno = LN_tisfc010.pdno
-INNER JOIN 
+LEFT JOIN
     LN_tcibd001 AS ibd_main ON LTRIM(RTRIM(LN_tisfc001.mitm)) = LTRIM(RTRIM(ibd_main.item))
 LEFT JOIN 
     LN_tdsls401 ON LTRIM(RTRIM(LN_tisfc001.cprj)) = LTRIM(RTRIM(LN_tdsls401.orno))
 LEFT JOIN 
-    LN_tcibd001 AS ibd_drawing ON trim(ibd_drawing.item) = trim(SUBSTRING(LN_tisfc001.mitm, 10, 40)) 
+    LN_tcibd001 AS ibd_drawing ON TRIM(ibd_drawing.item) = TRIM(SUBSTRING(LN_tisfc001.mitm, 10, 40)) 
 LEFT JOIN 
     LN_tcibd004 AS ibd_drawing_004 ON ibd_drawing.item = ibd_drawing_004.item
-INNER JOIN 
+LEFT JOIN
     LN_tdsls400 ON LTRIM(RTRIM(LN_tisfc001.cprj)) = LTRIM(RTRIM(LN_tdsls400.orno))
-WHERE
+WHERE 
     LN_tisfc010.opst < 7
     AND LN_tdsls401.qoor IS NOT NULL
 GROUP BY
