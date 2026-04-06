@@ -46,7 +46,7 @@ async function syncTable(tableKey) {
     if (isPreactor || tableKey === "tdpur401") {
       await localProvider.truncateAndInsert(def.localTable, data);
     } else {
-      await localProvider.upsertData(def.localTable, data, def.primaryKeys);
+      await localProvider.upsertData(def.localTable, data, def.primaryKeys, def.incrementalColumn);
     }
   }
 

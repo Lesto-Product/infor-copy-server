@@ -31,7 +31,7 @@ async function getPool() {
  * Основна функция за Bulk Upsert чрез глобална временна таблица.
  * Решава проблеми с Collation и производителност.
  */
-async function upsertData(tableName, data, keys) {
+async function upsertData(tableName, data, keys, incrementalColumn) {
   if (!data || data.length === 0) return 0;
 
   const pool = await getPool();
@@ -85,9 +85,17 @@ async function upsertData(tableName, data, keys) {
     const insertCols = columns.map((c) => `[${c}]`).join(", ");
     const insertVals = columns.map((c) => `Source.[${c}]`).join(", ");
 
+    const rowNumberPartition = keys.map((k) => `[${k}]`).join(", ");
+    const deduplicatedSource = incrementalColumn
+      ? `SELECT * FROM (
+            SELECT *, ROW_NUMBER() OVER (PARTITION BY ${rowNumberPartition} ORDER BY [${incrementalColumn}] DESC) AS _rn
+            FROM ${tempTableName}
+          ) AS _dedup WHERE _rn = 1`
+      : `SELECT DISTINCT * FROM ${tempTableName}`;
+
     const finalMergeQuery = `
       MERGE [dbo].[${tableName}] AS Target
-      USING (SELECT DISTINCT * FROM ${tempTableName}) AS Source
+      USING (${deduplicatedSource}) AS Source
       ON (${matchCondition})
       WHEN MATCHED THEN
         UPDATE SET ${updateSet}
