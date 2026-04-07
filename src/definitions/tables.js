@@ -3,7 +3,7 @@
 // --- 1. Дефиниране на полетата (Copy-Paste от стария fields.js с леко изчистване) ---
 
 const fields = {
-  sls400: `[orno], [ddat], [corn_bg_BG], [oamt], [ccur], [ofbp], [odat], [hdst], [itbp], [timestamp]`,
+  sls400: `[orno], [ddat], [corn_bg_BG], [oamt], [ccur], [ofbp], [odat], [hdst], [itbp],[stad], [timestamp]`,
 
   sls401: `[oamt], [ofbp], [orno], [ddta], [item], [pric], [odat], [qoor], [timestamp], [corn_bg_BG], [pono], [ttyp], [clyn]`,
 
