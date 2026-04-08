@@ -34,6 +34,8 @@ const fields = {
   tdisa001: `item, ccur, cups, pris, cvat, qimo, timestamp`,
 
   tirou401: `t401.[opno], t401.[refo], t401.[cwoc], t401.[mitm], t401.[rutm], t401.[mtyp], t401.[prte], t401.[prtm], t401.[rorv], t401.[timestamp], t450.dsca_bg_BG`,
+
+  com130: `main.[cadr], main.[namc_bg_BG], main.[pstc_bg_BG], main.[ccit], main.[ccty], main.[cste], main.[telp], city.[dsca_bg_BG]`,
 };
 
 // --- 2. Описване на правилата за всяка таблица ---
@@ -180,6 +182,13 @@ const tableDefinitions = {
     primaryKeys: ["mitm", "opno", "rorv"],
     incrementalColumn: "timestamp",
     baseFilter: "trim(t401.mitm) NOT LIKE 'SLS%'",
+  },
+  tccom130: {
+    localTable: "original_tccom130",
+    cloudTable: `LN_tccom130 main LEFT JOIN LN_tcmcs143 city ON city.ccty = main.ccty AND city.cste = main.cste`,
+    fields: fields.com130,
+    primaryKeys: ["cadr"],
+    incrementalColumn: null,
   },
 };
 
