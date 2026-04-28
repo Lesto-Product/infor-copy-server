@@ -36,6 +36,8 @@ const fields = {
   tirou401: `t401.[opno], t401.[refo], t401.[cwoc], t401.[mitm], t401.[rutm], t401.[mtyp], t401.[prte], t401.[prtm], t401.[rorv], t401.[timestamp], t450.dsca_bg_BG`,
 
   com130: `main.[cadr], main.[namc_bg_BG], main.[pstc_bg_BG], main.[ccit], main.[ccty], main.[cste], main.[telp], city.[dsca_bg_BG]`,
+
+  bptmm120: `[cprj], [cuni], [cwoc], [emno], [endt], [hrea], [hrma], [logn], [mcno], [opno], [orno], [perc], [rgdt], [seqn], [sequencenumber], [stdt], [tano], [timestamp], [trdt], [username]`,
 };
 
 // --- 2. Описване на правилата за всяка таблица ---
@@ -189,6 +191,14 @@ const tableDefinitions = {
     fields: fields.com130,
     primaryKeys: ["cadr"],
     incrementalColumn: null,
+  },
+
+  tbptmm120: {
+    localTable: "original_tbptmm120",
+    cloudTable: "LN_bptmm120",
+    fields: fields.bptmm120,
+    primaryKeys: ["sequencenumber"],
+    incrementalColumn: "timestamp",
   },
 };
 
