@@ -37,7 +37,7 @@ const fields = {
 
   com130: `main.[cadr], main.[namc_bg_BG], main.[pstc_bg_BG], main.[ccit], main.[ccty], main.[cste], main.[telp], city.[dsca_bg_BG]`,
 
-  bptmm120: `[cprj], [cuni], [cwoc], [emno], [endt], [hrea], [hrma], [logn], [mcno], [opno], [orno], [perc], [rgdt], [seqn], [sequencenumber], [stdt], [tano], [timestamp], [trdt], [username]`,
+  bptmm120: `[cprj], [cuni], [cwoc], [emno], DATEADD(HOUR, 3, [endt]) AS [endt], [hrea], [hrma], [logn], [mcno], [opno], [orno], [perc], DATEADD(HOUR, 3, [rgdt]) AS [rgdt], [seqn], [sequencenumber], DATEADD(HOUR, 3, [stdt]) AS [stdt], [tano], [timestamp], DATEADD(HOUR, 3, [trdt]) AS [trdt], [username]`,
 };
 
 // --- 2. Описване на правилата за всяка таблица ---
