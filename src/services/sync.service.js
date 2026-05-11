@@ -41,6 +41,21 @@ async function syncTable(tableKey) {
   const data = await cloudProvider.fetchQuery(query);
   console.log(`Fetched ${data.length} rows.`);
 
+  // 2b. Per-table post-fetch transforms
+  if (tableKey === "tbptmm120") {
+    const dateCols = ["endt", "rgdt", "stdt", "trdt"];
+    const SHIFT_MS = 3 * 60 * 60 * 1000;
+    for (const row of data) {
+      for (const col of dateCols) {
+        const v = row[col];
+        if (!v) continue;
+        const d = new Date(v);
+        if (isNaN(d.getTime())) continue;
+        row[col] = new Date(d.getTime() + SHIFT_MS).toISOString();
+      }
+    }
+  }
+
   // 3. Save
   if (data.length > 0) {
     if (isPreactor || tableKey === "tdpur401") {
