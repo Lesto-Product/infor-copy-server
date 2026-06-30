@@ -15,7 +15,7 @@ const fields = {
 
   rou002: `[dsca_bg_BG], [mcno]`,
 
-  ibd001: `main.[cdf_bcod], main.[item], main.[dsca_bg_BG], main.[cdf_adal_bg_BG], main.[cuni], main.[wght], main.[citg], main.[cdf_quad], client.[aitc_bg_BG]`,
+  ibd001: `[cdf_bcod], [item], [dsca_bg_BG], [cdf_adal_bg_BG], [cuni], [wght], [citg], [cdf_quad]`,
 
   ibd004: `[aitc_bg_BG], [aitd_bg_BG], [bpid], [citt], [item], [sequencenumber], [timestamp]`,
 
@@ -81,14 +81,12 @@ const tableDefinitions = {
     baseFilter: "pdno LIKE 'SFC%' AND CAST(prdt AS DATE) > '2023-12-31'",
   },
 
-  // --- ITEMS (COMPLEX JOIN) ---
-  //ТРЯБВА ДА ПРОВЕРЯ ЗАЩО ВЗИМА 130k ЗАПИСА, А ЗАПИСВА 30к+
+  // --- ITEMS ---
   tcibd001: {
     localTable: "original_tcibd001",
-    cloudTable:
-      "LN_tcibd001 main LEFT JOIN LN_tcibd004 client ON client.item = main.item",
+    cloudTable: "LN_tcibd001",
     fields: fields.ibd001,
-    primaryKeys: ["item", "aitc_bg_BG"],
+    primaryKeys: ["item"],
     baseFilter: "",
     incrementalColumn: null,
   },
