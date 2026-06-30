@@ -17,7 +17,7 @@ const fields = {
 
   ibd001: `main.[cdf_bcod], main.[item], main.[dsca_bg_BG], main.[cdf_adal_bg_BG], main.[cuni], main.[wght], main.[citg], main.[cdf_quad], client.[aitc_bg_BG]`,
 
-  ibd004: `[aitc], [aitd], [bpid], [citt], [item], [sequencenumber], [timestamp]`,
+  ibd004: `[aitc_bg_BG], [aitd_bg_BG], [bpid], [citt], [item], [sequencenumber], [timestamp]`,
 
   cst001: `[pono], [opno], [sitm], [qune]`,
 
