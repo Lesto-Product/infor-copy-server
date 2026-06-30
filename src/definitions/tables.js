@@ -17,6 +17,8 @@ const fields = {
 
   ibd001: `main.[cdf_bcod], main.[item], main.[dsca_bg_BG], main.[cdf_adal_bg_BG], main.[cuni], main.[wght], main.[citg], main.[cdf_quad], client.[aitc_bg_BG]`,
 
+  ibd004: `[aitc], [aitd], [bpid], [citt], [item], [sequencenumber], [timestamp]`,
+
   cst001: `[pono], [opno], [sitm], [qune]`,
 
   com100: `[nama_bg_BG], [bpid]`,
@@ -89,6 +91,15 @@ const tableDefinitions = {
     primaryKeys: ["item", "aitc_bg_BG"],
     baseFilter: "",
     incrementalColumn: null,
+  },
+
+  // --- ITEMS BY BUSINESS PARTNER (one item -> many BPs) ---
+  tcibd004: {
+    localTable: "original_tcibd004",
+    cloudTable: "LN_tcibd004",
+    fields: fields.ibd004,
+    primaryKeys: ["item", "bpid", "citt"],
+    incrementalColumn: "timestamp",
   },
 
   tirou001: {
