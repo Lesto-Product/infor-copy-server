@@ -11,7 +11,11 @@ module.exports = {
       enableArithAbort: false,
       trustServerCertificate: true,
       connectTimeout: 300000,
-      requestTimeout: 600000,
+      // Governs every .query() on this pool (node-mssql has NO working
+      // per-request `request.timeout` property - it must be set here or via
+      // `new sql.Request(pool, { requestTimeout })`). 30 min for the big
+      // full-reload MERGE of tcibd001 on SQL Express.
+      requestTimeout: 1800000,
     },
   },
   cloud: {

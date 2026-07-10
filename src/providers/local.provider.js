@@ -47,10 +47,10 @@ async function upsertData(tableName, data, keys, incrementalColumn) {
     const colTypeSql = (col) =>
       keySet.has(col) ? "NVARCHAR(200)" : "NVARCHAR(MAX)";
 
+    // Timeout-ът за .query() идва от pool config (requestTimeout, 30 мин).
+    // node-mssql НЯМА работещо `request.timeout` property - затова се вдига
+    // на ниво pool в config/db.config.js.
     const request = pool.request();
-    // Индексът прави MERGE-а бърз, но държим голям timeout като предпазна
-    // мрежа за първоначалните пълни презареждания на SQL Express (30 мин).
-    request.timeout = 1800000;
     // 1. СЪЗДАВАНЕ С DATABASE_DEFAULT (Решава Collation Conflict)
     const createTempTableQuery = `
       CREATE TABLE ${tempTableName} (
@@ -92,8 +92,8 @@ async function upsertData(tableName, data, keys, incrementalColumn) {
         );
       });
 
+      // bulk() не се влияе от requestTimeout - стриймва до край.
       const bulkRequest = pool.request();
-      bulkRequest.timeout = 600000;
       await bulkRequest.bulk(table);
 
       const loaded = Math.min(offset + BULK_CHUNK_SIZE, data.length);
