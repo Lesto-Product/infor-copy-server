@@ -41,7 +41,7 @@ async function upsertData(tableName, data, keys, incrementalColumn) {
   try {
     const columns = Object.keys(data[0]);
     const request = pool.request();
-    request.timeout = 300000;
+    request.timeout = 600000;
     // 1. СЪЗДАВАНЕ С DATABASE_DEFAULT (Решава Collation Conflict)
     const createTempTableQuery = `
       CREATE TABLE ${tempTableName} (
@@ -52,26 +52,42 @@ async function upsertData(tableName, data, keys, incrementalColumn) {
     `;
     await request.query(createTempTableQuery);
 
-    // 2. ПОДГОТОВКА И BULK INSERT
-    const table = new sql.Table(tempTableName);
-    columns.forEach((col) => {
-      table.columns.add(col, sql.NVarChar(sql.MAX), { nullable: true });
-    });
+    // 2. ПОДГОТОВКА И BULK INSERT (на партиди)
+    // ВАЖНО: request.bulk() игнорира request.timeout и ползва requestTimeout
+    // на пула (600000ms). При голяма таблица (напр. tcibd001 - пълно
+    // презареждане, incrementalColumn: null) един bulk с всички редове удря
+    // този лимит и пада с "Timeout: Request failed to complete in 600000ms".
+    // Затова наливаме на партиди - всяка партида е отделна кратка заявка,
+    // а ## глобалната temp таблица е видима от всички заявки към пула.
+    const BULK_CHUNK_SIZE = 5000;
+    for (let offset = 0; offset < data.length; offset += BULK_CHUNK_SIZE) {
+      const chunk = data.slice(offset, offset + BULK_CHUNK_SIZE);
 
-    data.forEach((row) => {
-      // Защита за PlannedOrder
-      if (
-        row.hasOwnProperty("PlannedOrder") &&
-        (row.PlannedOrder === null || row.PlannedOrder === undefined)
-      ) {
-        row.PlannedOrder = "0";
-      }
-      table.rows.add(
-        ...columns.map((c) => (row[c] !== null ? String(row[c]) : null))
-      );
-    });
+      const table = new sql.Table(tempTableName);
+      columns.forEach((col) => {
+        table.columns.add(col, sql.NVarChar(sql.MAX), { nullable: true });
+      });
 
-    await request.bulk(table);
+      chunk.forEach((row) => {
+        // Защита за PlannedOrder
+        if (
+          row.hasOwnProperty("PlannedOrder") &&
+          (row.PlannedOrder === null || row.PlannedOrder === undefined)
+        ) {
+          row.PlannedOrder = "0";
+        }
+        table.rows.add(
+          ...columns.map((c) => (row[c] !== null ? String(row[c]) : null))
+        );
+      });
+
+      const bulkRequest = pool.request();
+      bulkRequest.timeout = 600000;
+      await bulkRequest.bulk(table);
+
+      const loaded = Math.min(offset + BULK_CHUNK_SIZE, data.length);
+      console.log(`[BULK] ${tableName}: ${loaded}/${data.length} реда в temp.`);
+    }
 
     // 3. MERGE С ИЗРИЧЕН COLLATE ПРИ КЛЮЧОВЕТЕ И DISTINCT
     const matchCondition = keys
