@@ -40,13 +40,22 @@ async function upsertData(tableName, data, keys, incrementalColumn) {
 
   try {
     const columns = Object.keys(data[0]);
+    const keySet = new Set(keys);
+    // Ключовите колони ги правим NVARCHAR(200) (индексируеми, < 1700B лимит на
+    // индекса дори при съставен ключ). Останалите остават NVARCHAR(MAX).
+    const keySqlType = sql.NVarChar(200);
+    const colTypeSql = (col) =>
+      keySet.has(col) ? "NVARCHAR(200)" : "NVARCHAR(MAX)";
+
     const request = pool.request();
-    request.timeout = 600000;
+    // Индексът прави MERGE-а бърз, но държим голям timeout като предпазна
+    // мрежа за първоначалните пълни презареждания на SQL Express (30 мин).
+    request.timeout = 1800000;
     // 1. СЪЗДАВАНЕ С DATABASE_DEFAULT (Решава Collation Conflict)
     const createTempTableQuery = `
       CREATE TABLE ${tempTableName} (
         ${columns
-          .map((col) => `[${col}] NVARCHAR(MAX) COLLATE DATABASE_DEFAULT`)
+          .map((col) => `[${col}] ${colTypeSql(col)} COLLATE DATABASE_DEFAULT`)
           .join(", ")}
       );
     `;
@@ -65,7 +74,9 @@ async function upsertData(tableName, data, keys, incrementalColumn) {
 
       const table = new sql.Table(tempTableName);
       columns.forEach((col) => {
-        table.columns.add(col, sql.NVarChar(sql.MAX), { nullable: true });
+        table.columns.add(col, keySet.has(col) ? keySqlType : sql.NVarChar(sql.MAX), {
+          nullable: true,
+        });
       });
 
       chunk.forEach((row) => {
@@ -89,6 +100,15 @@ async function upsertData(tableName, data, keys, incrementalColumn) {
       console.log(`[BULK] ${tableName}: ${loaded}/${data.length} реда в temp.`);
     }
 
+    // 2b. Индекс върху ключовите колони -> MERGE join-ът вече не е пълно
+    // сканиране на temp таблицата. Това е основната причина merge-ът да
+    // отнемаше >10 мин при tcibd001 и да падаше с timeout.
+    const indexCols = keys.map((k) => `[${k}]`).join(", ");
+    console.log(`[INDEX] ${tableName}: изграждане на индекс по ключа...`);
+    await request.query(
+      `CREATE INDEX [IX_keys] ON ${tempTableName} (${indexCols});`
+    );
+
     // 3. MERGE С ИЗРИЧЕН COLLATE ПРИ КЛЮЧОВЕТЕ И DISTINCT
     const matchCondition = keys
       .map((k) => `Target.[${k}] = Source.[${k}] COLLATE DATABASE_DEFAULT`)
@@ -102,12 +122,17 @@ async function upsertData(tableName, data, keys, incrementalColumn) {
     const insertVals = columns.map((c) => `Source.[${c}]`).join(", ");
 
     const rowNumberPartition = keys.map((k) => `[${k}]`).join(", ");
-    const deduplicatedSource = incrementalColumn
-      ? `SELECT * FROM (
-            SELECT *, ROW_NUMBER() OVER (PARTITION BY ${rowNumberPartition} ORDER BY [${incrementalColumn}] DESC) AS _rn
+    // Дедупликация по ключа (един ред на ключ). За инкременталните таблици -
+    // най-новият по [incrementalColumn]. За пълните презареждания - без
+    // подредба. Ползваме ROW_NUMBER вместо DISTINCT *, защото DISTINCT върху
+    // NVARCHAR(MAX) колони прави огромен и бавен сорт.
+    const orderBy = incrementalColumn
+      ? `[${incrementalColumn}] DESC`
+      : `(SELECT NULL)`;
+    const deduplicatedSource = `SELECT * FROM (
+            SELECT *, ROW_NUMBER() OVER (PARTITION BY ${rowNumberPartition} ORDER BY ${orderBy}) AS _rn
             FROM ${tempTableName}
-          ) AS _dedup WHERE _rn = 1`
-      : `SELECT DISTINCT * FROM ${tempTableName}`;
+          ) AS _dedup WHERE _rn = 1`;
 
     const finalMergeQuery = `
       MERGE [dbo].[${tableName}] AS Target
@@ -121,6 +146,7 @@ async function upsertData(tableName, data, keys, incrementalColumn) {
       DROP TABLE ${tempTableName};
     `;
 
+    console.log(`[MERGE] ${tableName}: сливане на ${data.length} реда...`);
     await request.query(finalMergeQuery);
     console.log(`[BULK SUCCESS] ${tableName}: ${data.length} rows merged.`);
     return data.length;
