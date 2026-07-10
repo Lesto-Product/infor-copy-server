@@ -61,7 +61,28 @@ async function syncTable(tableKey) {
     if (isPreactor || tableKey === "tdpur401") {
       await localProvider.truncateAndInsert(def.localTable, data);
     } else {
-      await localProvider.upsertData(def.localTable, data, def.primaryKeys, def.incrementalColumn);
+      // Bootstrap: ако локалната таблица е празна (пр. първи инкрементален
+      // sync на tcibd001), правим бърз full reload без MERGE. Иначе -
+      // нормалният инкрементален/пълен MERGE upsert.
+      const isEmpty = (await localProvider.countRows(def.localTable)) === 0;
+      if (isEmpty) {
+        console.log(
+          `[BOOTSTRAP] ${tableKey}: локалната таблица е празна -> full reload.`
+        );
+        await localProvider.fullReload(
+          def.localTable,
+          data,
+          def.primaryKeys,
+          def.incrementalColumn
+        );
+      } else {
+        await localProvider.upsertData(
+          def.localTable,
+          data,
+          def.primaryKeys,
+          def.incrementalColumn
+        );
+      }
     }
   }
 

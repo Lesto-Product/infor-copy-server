@@ -165,6 +165,107 @@ async function upsertData(tableName, data, keys, incrementalColumn) {
 }
 
 /**
+ * Брой редове в локална таблица (за да разберем дали е за първоначално
+ * зареждане). При грешка връщаме 1 (приемаме "не е празна" -> безопасно,
+ * върви по MERGE пътя, а не по разрушителния full reload).
+ */
+async function countRows(tableName) {
+  const pool = await getPool();
+  try {
+    const res = await pool
+      .request()
+      .query(`SELECT COUNT_BIG(*) AS c FROM [dbo].[${tableName}]`);
+    return Number(res.recordset[0].c) || 0;
+  } catch (err) {
+    console.warn(`Could not count rows for ${tableName}: ${err.message}`);
+    return 1;
+  }
+}
+
+/**
+ * Бързо ПЪЛНО зареждане без MERGE - за bootstrap на празна таблица.
+ * bulk в ## temp (стриймва, не се влияе от requestTimeout) + едно set-based
+ * DELETE + INSERT..SELECT. Няма скъпия UPDATE-на-всеки-ред на MERGE-а.
+ */
+async function fullReload(tableName, data, keys, incrementalColumn) {
+  if (!data || data.length === 0) return 0;
+
+  const pool = await getPool();
+  const tempTableName = `##TempFull_${tableName}_${Date.now()}`;
+  const request = pool.request();
+
+  try {
+    const columns = Object.keys(data[0]);
+    await request.query(
+      `CREATE TABLE ${tempTableName} (${columns
+        .map((c) => `[${c}] NVARCHAR(MAX) COLLATE DATABASE_DEFAULT`)
+        .join(", ")});`
+    );
+
+    const BULK_CHUNK_SIZE = 5000;
+    for (let offset = 0; offset < data.length; offset += BULK_CHUNK_SIZE) {
+      const chunk = data.slice(offset, offset + BULK_CHUNK_SIZE);
+
+      const table = new sql.Table(tempTableName);
+      columns.forEach((col) => {
+        table.columns.add(col, sql.NVarChar(sql.MAX), { nullable: true });
+      });
+      chunk.forEach((row) => {
+        if (
+          row.hasOwnProperty("PlannedOrder") &&
+          (row.PlannedOrder === null || row.PlannedOrder === undefined)
+        ) {
+          row.PlannedOrder = "0";
+        }
+        table.rows.add(
+          ...columns.map((c) => (row[c] !== null ? String(row[c]) : null))
+        );
+      });
+
+      const bulkRequest = pool.request();
+      await bulkRequest.bulk(table);
+
+      const loaded = Math.min(offset + BULK_CHUNK_SIZE, data.length);
+      console.log(`[FULL] ${tableName}: ${loaded}/${data.length} реда в temp.`);
+    }
+
+    // Дедупликация по ключа (както при MERGE), за да няма дублирани ключове.
+    const insertCols = columns.map((c) => `[${c}]`).join(", ");
+    let sourceSelect = `SELECT ${insertCols} FROM ${tempTableName}`;
+    if (keys && keys.length) {
+      const partition = keys.map((k) => `[${k}]`).join(", ");
+      const orderBy = incrementalColumn
+        ? `[${incrementalColumn}] DESC`
+        : `(SELECT NULL)`;
+      sourceSelect = `SELECT ${insertCols} FROM (
+            SELECT *, ROW_NUMBER() OVER (PARTITION BY ${partition} ORDER BY ${orderBy}) AS _rn
+            FROM ${tempTableName}
+          ) AS _d WHERE _rn = 1`;
+    }
+
+    console.log(`[FULL] ${tableName}: презареждане на целевата таблица...`);
+    await request.query(`
+      DELETE FROM [dbo].[${tableName}];
+      INSERT INTO [dbo].[${tableName}] (${insertCols})
+      ${sourceSelect};
+      DROP TABLE ${tempTableName};
+    `);
+    console.log(`[FULL SUCCESS] ${tableName}: ${data.length} реда заредени.`);
+    return data.length;
+  } catch (err) {
+    console.error(`Грешка при Full Reload в ${tableName}:`, err);
+    try {
+      await pool
+        .request()
+        .query(
+          `IF OBJECT_ID('tempdb..${tempTableName}') IS NOT NULL DROP TABLE ${tempTableName}`
+        );
+    } catch (e) {}
+    throw err;
+  }
+}
+
+/**
  * Взима последната дата за инкрементален ъпдейт.
  */
 async function getMaxTimestamp(tableName, timeColumn) {
@@ -272,6 +373,8 @@ async function truncateAndInsert(tableName, data) {
 
 module.exports = {
   upsertData,
+  fullReload,
+  countRows,
   getMaxTimestamp,
   updateSyncLog,
   getSyncLogs,

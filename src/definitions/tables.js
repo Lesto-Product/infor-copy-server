@@ -15,7 +15,7 @@ const fields = {
 
   rou002: `[dsca_bg_BG], [mcno]`,
 
-  ibd001: `[cdf_bcod], [item], [dsca_bg_BG], [cdf_adal_bg_BG], [cuni], [wght], [citg], [cdf_quad]`,
+  ibd001: `[cdf_bcod], [item], [dsca_bg_BG], [cdf_adal_bg_BG], [cuni], [wght], [citg], [cdf_quad], [timestamp]`,
 
   ibd004: `[aitc_bg_BG], [aitd_bg_BG], [bpid], [citt], [item], [sequencenumber], [timestamp]`,
 
@@ -88,7 +88,10 @@ const tableDefinitions = {
     fields: fields.ibd001,
     primaryKeys: ["item"],
     baseFilter: "",
-    incrementalColumn: null,
+    // Инкрементално по [timestamp] - иначе се тегли цялата таблица всеки път
+    // и MERGE-ът презаписва всички редове (>30 мин, timeout на SQL Express).
+    // Първото зареждане на празна таблица минава през fullReload (bootstrap).
+    incrementalColumn: "timestamp",
   },
 
   // --- ITEMS BY BUSINESS PARTNER (one item -> many BPs) ---
