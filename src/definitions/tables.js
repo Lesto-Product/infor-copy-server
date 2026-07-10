@@ -15,7 +15,7 @@ const fields = {
 
   rou002: `[dsca_bg_BG], [mcno]`,
 
-  ibd001: `[cdf_bcod], [item], [dsca_bg_BG], [cdf_adal_bg_BG], [cuni], [wght], [citg], [cdf_quad], [timestamp]`,
+  ibd001: `[cdf_bcod], [item], [dsca_bg_BG], [cdf_adal_bg_BG], [cuni], [wght], [citg], [cdf_quad]`,
 
   ibd004: `[aitc_bg_BG], [aitd_bg_BG], [bpid], [citt], [item], [sequencenumber], [timestamp]`,
 
@@ -88,10 +88,9 @@ const tableDefinitions = {
     fields: fields.ibd001,
     primaryKeys: ["item"],
     baseFilter: "",
-    // Инкрементално по [timestamp] - иначе се тегли цялата таблица всеки път
-    // и MERGE-ът презаписва всички редове (>30 мин, timeout на SQL Express).
-    // Първото зареждане на празна таблица минава през fullReload (bootstrap).
-    incrementalColumn: "timestamp",
+    // Само ~161k реда в облака - пълно презареждане всеки път е бързо, стига
+    // локалната таблица да е чиста (UNIQUE индекс по item пази от дублиране).
+    incrementalColumn: null,
   },
 
   // --- ITEMS BY BUSINESS PARTNER (one item -> many BPs) ---
