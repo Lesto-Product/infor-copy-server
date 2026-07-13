@@ -22,6 +22,29 @@ async function fetchQuery(query) {
       columns.push(await meta.getColumnNamePromise(i));
     }
 
+    // DIAGNOSTIC: покажи точните имена на колоните от JDBC metadata (тук се
+    // виждат евентуални дубликати ПРЕДИ row-обектът да ги слее). Винаги логваме
+    // списъка; при засечен дубликат (trim+lowercase) дъмпваме и char-codes на
+    // всеки символ, за да хванем невидими знаци (trailing space / кирилски
+    // хомоглиф), които чупят INSERT-а с "column specified more than once".
+    console.log(`[CLOUD COLS] (${colCount}) ${JSON.stringify(columns)}`);
+    const lc = columns.map((c) => String(c).trim().toLowerCase());
+    const dupIdx = lc
+      .map((v, i) => (lc.indexOf(v) !== i ? i : -1))
+      .filter((i) => i >= 0);
+    if (dupIdx.length) {
+      console.warn(`[CLOUD DUP] дублирани имена на колони от JDBC!`);
+      const uniq = new Set(dupIdx.flatMap((i) => [lc.indexOf(lc[i]), i]));
+      for (const i of uniq) {
+        const codes = Array.from(String(columns[i])).map((ch) =>
+          ch.charCodeAt(0)
+        );
+        console.warn(
+          `[CLOUD DUP]   idx=${i} [${columns[i]}] charCodes=${codes.join(",")}`
+        );
+      }
+    }
+
     const results = [];
     while (await resultSet.nextPromise()) {
       const row = {};

@@ -28,6 +28,35 @@ async function getPool() {
 }
 
 /**
+ * Cloud-ът (Compass JDBC) при някои заявки връща една и съща колона повече от
+ * веднъж (напр. при composite ключове / изрази). Тогава генерираният INSERT/SET
+ * списък съдържа колоната два пъти -> SQL Msg 264 ("column specified more than
+ * once"). Махаме дубликатите case-insensitive, като пазим първото срещане.
+ */
+function dedupeColumns(rawColumns, tableName) {
+  const seen = new Set();
+  const out = [];
+  const dropped = [];
+  for (const c of rawColumns) {
+    const lc = String(c).trim().toLowerCase();
+    if (seen.has(lc)) {
+      dropped.push(c);
+      continue;
+    }
+    seen.add(lc);
+    out.push(c);
+  }
+  if (dropped.length) {
+    console.warn(
+      `[DEDUP] ${tableName}: махнати дублирани колони ${JSON.stringify(
+        dropped
+      )} (пълен списък от cloud: ${JSON.stringify(rawColumns)})`
+    );
+  }
+  return out;
+}
+
+/**
  * Основна функция за Bulk Upsert чрез глобална временна таблица.
  * Решава проблеми с Collation и производителност.
  */
@@ -39,7 +68,7 @@ async function upsertData(tableName, data, keys, incrementalColumn) {
   const tempTableName = `##TempBulk_${tableName}_${Date.now()}`;
 
   try {
-    const columns = Object.keys(data[0]);
+    const columns = dedupeColumns(Object.keys(data[0]), tableName);
     const keySet = new Set(keys);
     // Ключовите колони ги правим NVARCHAR(200) (индексируеми, < 1700B лимит на
     // индекса дори при съставен ключ). Останалите остават NVARCHAR(MAX).
@@ -195,7 +224,7 @@ async function fullReload(tableName, data, keys, incrementalColumn) {
   const request = pool.request();
 
   try {
-    const columns = Object.keys(data[0]);
+    const columns = dedupeColumns(Object.keys(data[0]), tableName);
     await request.query(
       `CREATE TABLE ${tempTableName} (${columns
         .map((c) => `[${c}] NVARCHAR(MAX) COLLATE DATABASE_DEFAULT`)
