@@ -175,6 +175,14 @@ async function upsertData(tableName, data, keys, incrementalColumn) {
       DROP TABLE ${tempTableName};
     `;
 
+    console.log(
+      `[MERGE DBG] ${tableName} keys=${JSON.stringify(
+        keys
+      )} cols(${columns.length})=${JSON.stringify(columns)}`
+    );
+    console.log(`[MERGE DBG] ${tableName} insertCols=${insertCols}`);
+    console.log(`[MERGE DBG] ${tableName} updateSet=${updateSet}`);
+    console.log(`[MERGE DBG] ${tableName} SQL>>>\n${finalMergeQuery}\n<<<`);
     console.log(`[MERGE] ${tableName}: сливане на ${data.length} реда...`);
     await request.query(finalMergeQuery);
     console.log(`[BULK SUCCESS] ${tableName}: ${data.length} rows merged.`);
