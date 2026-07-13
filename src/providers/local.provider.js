@@ -72,9 +72,15 @@ async function upsertData(tableName, data, keys, incrementalColumn) {
     const keySet = new Set(keys);
     // Ключовите колони ги правим NVARCHAR(200) (индексируеми, < 1700B лимит на
     // индекса дори при съставен ключ). Останалите остават NVARCHAR(MAX).
-    const keySqlType = sql.NVarChar(200);
+    // ВАЖНО: за bulk-а типът трябва да е СВЕЖА инстанция за всяка колона.
+    // node-mssql записва името на колоната върху подадения type обект, така че
+    // ако споделим една `sql.NVarChar(200)` инстанция между няколко ключови
+    // колони (composite ключ), второто име презаписва първото и bulk-ът праща
+    // дублирано име -> "The column name '...' is specified more than once".
     const colTypeSql = (col) =>
       keySet.has(col) ? "NVARCHAR(200)" : "NVARCHAR(MAX)";
+    const bulkColType = (col) =>
+      keySet.has(col) ? sql.NVarChar(200) : sql.NVarChar(sql.MAX);
 
     // Timeout-ът за .query() идва от pool config (requestTimeout, 30 мин).
     // node-mssql НЯМА работещо `request.timeout` property - затова се вдига
@@ -103,9 +109,8 @@ async function upsertData(tableName, data, keys, incrementalColumn) {
 
       const table = new sql.Table(tempTableName);
       columns.forEach((col) => {
-        table.columns.add(col, keySet.has(col) ? keySqlType : sql.NVarChar(sql.MAX), {
-          nullable: true,
-        });
+        // Свежа type инстанция за всяка колона (виж коментара при bulkColType).
+        table.columns.add(col, bulkColType(col), { nullable: true });
       });
 
       chunk.forEach((row) => {
@@ -175,14 +180,6 @@ async function upsertData(tableName, data, keys, incrementalColumn) {
       DROP TABLE ${tempTableName};
     `;
 
-    console.log(
-      `[MERGE DBG] ${tableName} keys=${JSON.stringify(
-        keys
-      )} cols(${columns.length})=${JSON.stringify(columns)}`
-    );
-    console.log(`[MERGE DBG] ${tableName} insertCols=${insertCols}`);
-    console.log(`[MERGE DBG] ${tableName} updateSet=${updateSet}`);
-    console.log(`[MERGE DBG] ${tableName} SQL>>>\n${finalMergeQuery}\n<<<`);
     console.log(`[MERGE] ${tableName}: сливане на ${data.length} реда...`);
     await request.query(finalMergeQuery);
     console.log(`[BULK SUCCESS] ${tableName}: ${data.length} rows merged.`);

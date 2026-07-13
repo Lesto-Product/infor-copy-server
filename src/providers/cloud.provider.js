@@ -22,12 +22,8 @@ async function fetchQuery(query) {
       columns.push(await meta.getColumnNamePromise(i));
     }
 
-    // DIAGNOSTIC: покажи точните имена на колоните от JDBC metadata (тук се
-    // виждат евентуални дубликати ПРЕДИ row-обектът да ги слее). Винаги логваме
-    // списъка; при засечен дубликат (trim+lowercase) дъмпваме и char-codes на
-    // всеки символ, за да хванем невидими знаци (trailing space / кирилски
-    // хомоглиф), които чупят INSERT-а с "column specified more than once".
-    console.log(`[CLOUD COLS] (${colCount}) ${JSON.stringify(columns)}`);
+    // Ако cloud-ът върне дублирани имена на колони (case/whitespace-insensitive),
+    // дъмпваме ги с char-codes - иначе тихо биха счупили по-нататък INSERT-а.
     const lc = columns.map((c) => String(c).trim().toLowerCase());
     const dupIdx = lc
       .map((v, i) => (lc.indexOf(v) !== i ? i : -1))
