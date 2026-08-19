@@ -3,7 +3,7 @@
 // --- 1. Дефиниране на полетата (Copy-Paste от стария fields.js с леко изчистване) ---
 
 const fields = {
-  sls400: `[orno], [ddat], [corn_bg_BG], [oamt], [ccur], [ofbp], [odat], [hdst], [itbp],[stad], [timestamp]`,
+  sls400: `[orno], [ddat], [corn_bg_BG], [oamt], [ccur], [ofbp], [odat], [hdst], [itbp],[stad], [cdec], [timestamp]`,
 
   sls401: `[oamt], [ofbp], [orno], [ddta], [item], [pric], [odat], [qoor], [timestamp], [corn_bg_BG], [pono], [ttyp], [clyn]`,
 
@@ -38,6 +38,16 @@ const fields = {
   tirou401: `t401.[opno], t401.[refo], t401.[cwoc], t401.[mitm], t401.[rutm], t401.[mtyp], t401.[prte], t401.[prtm], t401.[rorv], t401.[timestamp], t450.dsca_bg_BG`,
 
   com130: `main.[cadr], main.[namc_bg_BG], main.[pstc_bg_BG], main.[ccit], main.[ccty], main.[cste], main.[telp], city.[dsca_bg_BG]`,
+
+  // BP defaults: osno = нашият SUPPLIER No при клиента, cdec = delivery terms
+  // по подразбиране (order-level cdec от tdsls400 бие този), cadr = адрес по
+  // подразбиране за BP-та без поръчки. Пропускаме cofc ('MAIN'), incd и rdec
+  // (празни). Една отворена редица на BP - endt = 1970-01-01 е нулевата дата
+  // на LN, затова не филтрираме по ефективност.
+  com110: `[ofbp], [cdec], [osno], [cadr], [stdt], [endt]`,
+
+  // Master на градовете. Колоната се казва [city] тук, но [ccit] в tccom130.
+  com139: `[ccty], [cste], [city], [dsca_bg_BG]`,
 
   bptmm120: `[cprj], [cuni], [cwoc], [emno], [endt], [hrea], [hrma], [logn], [mcno], [opno], [orno], [perc], [rgdt], [seqn], [sequencenumber], [stdt], [tano], [timestamp], [trdt], [username]`,
 };
@@ -201,6 +211,25 @@ const tableDefinitions = {
     cloudTable: `LN_tccom130 main LEFT JOIN LN_tcmcs143 city ON city.ccty = main.ccty AND city.cste = main.cste`,
     fields: fields.com130,
     primaryKeys: ["cadr"],
+    incrementalColumn: null,
+  },
+
+  tccom110: {
+    localTable: "original_tccom110",
+    cloudTable: "LN_tccom110",
+    fields: fields.com110,
+    primaryKeys: ["ofbp"],
+    incrementalColumn: null,
+  },
+
+  tccom139: {
+    localTable: "original_tccom139",
+    cloudTable: "LN_tccom139",
+    fields: fields.com139,
+    // Ключът е СЪСТАВЕН - кодът на града сам по себе си не е уникален:
+    // BG/PL/00000018 = Плевен, BG/VR/00000018 = гр. Враца, а 00000176 е
+    // Добрич в BG и Tezze sul Brenta в IT.
+    primaryKeys: ["ccty", "cste", "city"],
     incrementalColumn: null,
   },
 
