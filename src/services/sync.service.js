@@ -42,6 +42,35 @@ async function syncTable(tableKey) {
   console.log(`Fetched ${data.length} rows.`);
 
   // 2b. Per-table post-fetch transforms
+
+  // LN пази празните кодове като '' (не NULL), но cloud.provider.js връща
+  // `val ? String(val) : null` - т.е. празният низ идва тук като null.
+  // За ключовите колони това е фатално: в MERGE-а `NULL = NULL` е false,
+  // значи редът никога не match-ва и се вмъква наново при всеки sync
+  // (при NOT NULL ключ - пада веднага с "Cannot insert the value NULL").
+  // Затова връщаме '' обратно. Прави и join-а tccom130 -> tccom139 обикновен
+  // equi-join по (ccty, cste, city) - без ISNULL от двете страни.
+  const blankKeyColumns = {
+    tccom139: ["ccty", "cste", "city"],
+    tccom130: ["ccty", "cste", "ccit"],
+  }[tableKey];
+  if (blankKeyColumns) {
+    let fixed = 0;
+    for (const row of data) {
+      for (const col of blankKeyColumns) {
+        if (row[col] === null || row[col] === undefined) {
+          row[col] = "";
+          fixed++;
+        }
+      }
+    }
+    if (fixed) {
+      console.log(
+        `[BLANK KEYS] ${tableKey}: ${fixed} празни ключови стойности -> ''.`
+      );
+    }
+  }
+
   if (tableKey === "tbptmm120") {
     const dateCols = ["endt", "rgdt", "stdt", "trdt"];
     const SHIFT_MS = 3 * 60 * 60 * 1000;
