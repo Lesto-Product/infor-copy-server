@@ -37,7 +37,10 @@ const fields = {
 
   tirou401: `t401.[opno], t401.[refo], t401.[cwoc], t401.[mitm], t401.[rutm], t401.[mtyp], t401.[prte], t401.[prtm], t401.[rorv], t401.[timestamp], t450.dsca_bg_BG`,
 
-  com130: `main.[cadr], main.[namc_bg_BG], main.[pstc_bg_BG], main.[ccit], main.[ccty], main.[cste], main.[telp], city.[dsca_bg_BG]`,
+  // ВНИМАНИЕ: nama != namc. [nama_bg_BG] е името на фирмата
+  // ('GABRIEL TRANSPORT AG'), а [namc_bg_BG] е улицата ('Herdern No.17').
+  // [dsca_bg_BG] идва от tcmcs143 и е областта, не името.
+  com130: `main.[cadr], main.[nama_bg_BG], main.[namc_bg_BG], main.[pstc_bg_BG], main.[ccit], main.[ccty], main.[cste], main.[telp], city.[dsca_bg_BG]`,
 
   // BP defaults: osno = нашият SUPPLIER No при клиента, cdec = delivery terms
   // по подразбиране (order-level cdec от tdsls400 бие този), cadr = адрес по
