@@ -19,7 +19,9 @@ const fields = {
 
   ibd004: `[aitc_bg_BG], [aitd_bg_BG], [bpid], [citt], [item], [sequencenumber], [timestamp]`,
 
-  cst001: `[pono], [opno], [sitm], [qune]`,
+  // Материали по производствена поръчка. [pdno] е част от ключа - [pono] е
+  // позицията ВЪТРЕ в поръчката и се повтаря между поръчките.
+  cst001: `[pdno], [pono], [opno], [sitm], [qune], [ques], [timestamp]`,
 
   com100: `[nama_bg_BG], [bpid]`,
 
@@ -92,6 +94,14 @@ const tableDefinitions = {
     primaryKeys: ["pdno", "opno"],
     incrementalColumn: "timestamp",
     baseFilter: "pdno LIKE 'SFC%' AND CAST(prdt AS DATE) > '2023-12-31'",
+  },
+
+  ticst001: {
+    localTable: "original_ticst001",
+    cloudTable: "LN_ticst001",
+    fields: fields.cst001,
+    primaryKeys: ["pdno", "pono"],
+    incrementalColumn: "timestamp",
   },
 
   // --- ITEMS ---
