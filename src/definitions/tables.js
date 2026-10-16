@@ -263,12 +263,17 @@ const tableDefinitions = {
   // --- EMPLOYEES (имена за tbptmm120.emno) ---
   // Малък master -> пълно презареждане при всеки sync (без timestamp).
   // Целевата таблица се създава ръчно: db/create_tccom001.sql.
+  // Само компания 201 (производството, 226 служители, уникални кодове).
+  // В 40/51/52/1100 има демо записи ("Service Employee [SE] Consulting"),
+  // при които един и същ код се повтаря в две компании - проверено в
+  // Compass на 16.10.2026.
   tccom001: {
     localTable: "original_tccom001",
     cloudTable: "LN_tccom001",
     fields: fields.com001,
     primaryKeys: ["emno"],
     incrementalColumn: null,
+    baseFilter: "compnr = '201'",
   },
 };
 
