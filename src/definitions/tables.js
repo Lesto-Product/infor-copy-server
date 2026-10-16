@@ -55,6 +55,12 @@ const fields = {
   com139: `[ccty], [cste], [city], [dsca_bg_BG]`,
 
   bptmm120: `[cprj], [cuni], [cwoc], [emno], [endt], [hrea], [hrma], [logn], [mcno], [opno], [orno], [perc], [rgdt], [seqn], [sequencenumber], [stdt], [tano], [timestamp], [trdt], [username]`,
+
+  // Служители (Employees - General). [nama_bg_BG] е името на служителя -
+  // както при tccom100 многоезичното поле идва от Datalake-а със суфикс
+  // _bg_BG. Ползва се за имената в „Служители“ на Таблото Производство
+  // (tbptmm120.emno -> име).
+  com001: `[emno], [nama_bg_BG]`,
 };
 
 // --- 2. Описване на правилата за всяка таблица ---
@@ -252,6 +258,17 @@ const tableDefinitions = {
     fields: fields.bptmm120,
     primaryKeys: ["sequencenumber"],
     incrementalColumn: "timestamp",
+  },
+
+  // --- EMPLOYEES (имена за tbptmm120.emno) ---
+  // Малък master -> пълно презареждане при всеки sync (без timestamp).
+  // Целевата таблица се създава ръчно: db/create_tccom001.sql.
+  tccom001: {
+    localTable: "original_tccom001",
+    cloudTable: "LN_tccom001",
+    fields: fields.com001,
+    primaryKeys: ["emno"],
+    incrementalColumn: null,
   },
 };
 
